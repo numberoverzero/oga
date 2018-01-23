@@ -121,7 +121,25 @@ class Asset:
 
 
 class Session:
-    def __init__(self, config: Config, loop: Optional[asyncio.AbstractEventLoop]=None) -> None:
+    """
+    Provides asynchronous methods for querying and fetching
+    (against a cache manifest) individual assets and collections.
+
+    Usage::
+
+        >>> session = Session()
+        # easier blocking calls
+        >>> run = session.loop.run_until_complete
+
+        >>> asset = run(session.describe_asset("imminent-threat"))
+        >>> run(session.download_asset(asset))
+        # cache hit, returns immediately
+        >>> run(session.download_asset(asset))
+
+    """
+    def __init__(self, config: Optional[Config]=None, loop: Optional[asyncio.AbstractEventLoop]=None) -> None:
+        if config is None:
+            config = Config.default()
         if loop is None:
             loop = asyncio.get_event_loop()
         self.loop = loop
@@ -144,7 +162,7 @@ class Session:
             for asset_file_id in partial_asset["files"]]
         if tasks:
             tasks, _ = await asyncio.wait(
-                tasks, loop=self._session.loop, return_when=asyncio.ALL_COMPLETED)
+                tasks, loop=self.loop, return_when=asyncio.ALL_COMPLETED)
             partial_asset["files"] = [task.result() for task in tasks]
         return Asset(**partial_asset)
 
@@ -168,7 +186,7 @@ class Session:
             self.download_asset_file(asset.id, asset_file, root_dir=root_dir)
             for asset_file in asset.files
         ]
-        await asyncio.wait(tasks, loop=self._session.loop, return_when=asyncio.ALL_COMPLETED)
+        await asyncio.wait(tasks, loop=self.loop, return_when=asyncio.ALL_COMPLETED)
 
     async def download_asset_file(
             self, asset_id: str, asset_file: AssetFile, root_dir: Optional[str]=None) -> None:
