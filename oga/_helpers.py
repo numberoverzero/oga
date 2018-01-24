@@ -1,11 +1,14 @@
 import asyncio
 import functools
-from typing import AsyncGenerator, List, TypeVar
+import logging
+from typing import AsyncGenerator, Generator, List, Optional, TypeVar
 
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
-__all__ = ["block_on", "collect"]
+__all__ = ["block_on", "collect", "synchronize_generator"]
 
 
 class _AsyncProxy:
@@ -36,11 +39,46 @@ async def collect(generator: AsyncGenerator[T, None]) -> List[T]:
     return results
 
 
+def synchronize_generator(
+        async_gen: AsyncGenerator[T, None],
+        loop: Optional[asyncio.BaseEventLoop]=None) -> Generator[T, None, None]:
+    """
+    Maps ``__anext__`` to ``__next__`` to synchronously interact with async generators.
+
+    If you would write the following async code:
+
+    .. code-block: python
+
+        async for x in my_gen:
+            print(x)
+
+    Then you can synchronize this call with the following:
+
+    .. code-block: python
+
+        for x in synchronize_generator(my_gen):
+            print(x)
+
+    :param async_gen: An asynchronous generator you'd like to synchronously iterate
+    :param loop: The event loop to use; probably the same one that created your async generator
+    :return: An object that
+    """
+    if loop is None:
+        loop = asyncio.get_event_loop()
+
+    while True:
+        try:
+            yield loop.run_until_complete(async_gen.__anext__())
+        except StopAsyncIteration:
+            break
+
+
 def _install_uvloop():
     try:
         import asyncio
         import uvloop
         asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+        logger.debug("installed uvloop.EventLoopPolicy")
     except ImportError:
         pass
 
