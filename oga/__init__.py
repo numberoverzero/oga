@@ -1,13 +1,15 @@
 __version__ = "1.0.0"
 
-from ._helpers import enable_speedups
-from .core import Session
+from . import _helpers
+from .core import Config, Session
 from .primitives import Asset, AssetFile, AssetType, LicenseType
+
 
 __all__ = [
     "Asset", "AssetFile", "AssetType", "LicenseType",
-    "Session"
+    "Config", "Session"
 ]
 
-enable_speedups()
 
+# Hooray for uvloop!
+_helpers.enable_speedups()

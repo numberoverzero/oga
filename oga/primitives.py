@@ -2,6 +2,7 @@ import enum
 import json
 from typing import List, NamedTuple
 
+
 __all__ = ["Asset", "AssetFile", "AssetType", "LicenseType"]
 
 

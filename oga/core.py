@@ -1,21 +1,20 @@
 # Core operations for downloading, searching on OpenGameArt.org
 import asyncio
-import aiohttp
 import json
 import pathlib
 import urllib.parse
-from typing import List, Optional, NamedTuple, Dict, AsyncGenerator
 from configparser import ConfigParser
+from typing import AsyncGenerator, Dict, List, NamedTuple, Optional
 
-from ._helpers import enable_speedups
+import aiohttp
+
 from .parsing import (
     Translations,
     parse_asset,
-    parse_search_results,
     parse_last_search_page,
+    parse_search_results,
 )
 from .primitives import Asset, AssetFile, AssetType, LicenseType
-enable_speedups()
 
 
 DEFAULT_CONFIG_LOCATION = "~/.oga/config"
@@ -98,7 +97,7 @@ class Session:
         if config is None:
             config = Config.default()
         if loop is None:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.new_event_loop()
         self.loop = loop
         self.config = config
 

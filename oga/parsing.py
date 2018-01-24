@@ -1,11 +1,10 @@
-import bs4
 import re
 import urllib.parse
-
 from typing import List
 
-from .primitives import AssetType, LicenseType
+import bs4
 
+from .primitives import AssetType, LicenseType
 
 
 class Translations:
