@@ -1,15 +1,20 @@
 # Core operations for downloading, searching on OpenGameArt.org
 import asyncio
 import aiohttp
-import bs4
-import enum
 import json
 import pathlib
 import urllib.parse
-from typing import List, Optional, NamedTuple, Dict
+from typing import List, Optional, NamedTuple, Dict, AsyncGenerator
 from configparser import ConfigParser
 
-from oga._helpers import enable_speedups
+from ._helpers import enable_speedups
+from .parsing import (
+    Translations,
+    parse_asset,
+    parse_search_results,
+    parse_last_search_page,
+)
+from .primitives import Asset, AssetFile, AssetType, LicenseType
 enable_speedups()
 
 
@@ -27,8 +32,7 @@ class Config(NamedTuple):
         return Config(
             url="https://opengameart.org",
             max_conns=5,
-            root_dir="~/.oga"
-        )
+            root_dir="~/.oga")
 
     @classmethod
     def from_file(cls, file_path: Optional[str]=None) -> Optional["Config"]:
@@ -47,77 +51,30 @@ class Config(NamedTuple):
         return Config(
             url=section.get("url", fallback=default.url),
             max_conns=section.getint("max_conns", fallback=default.max_conns),
-            root_dir=section.get("root_dir", fallback=default.root_dir)
-        )
+            root_dir=section.get("root_dir", fallback=default.root_dir))
 
 
-class AssetType(enum.Enum):
-    ART_2D = "2D Art"
-    ART_3D = "3D Art"
-    CONCEPT_ART = "Concept Art"
-    TEXTURE = "Texture"
-    MUSIC = "Music"
-    SOUND_EFFECT = "Sound Effect"
-    DOCUMENT = "Document"
+async def search(session: aiohttp.ClientSession, base_query: str) -> AsyncGenerator[str, None]:
+    page = 0
 
+    async def fetch() -> bytes:
+        url = f"{base_query}&page={page}"
+        async with session.get(url) as response:
+            return await response.read()
 
-class LicenseType(enum.Enum):
-    CC_BY_40 = "CC-BY 4.0"
-    CC_BY_30 = "CC-BY 3.0"
-    CC_BY_SA_40 = "CC-BY-SA 4.0"
-    CC_BY_SA_30 = "CC-BY-SA 3.0"
-    GPL_30 = "GPL 3.0"
-    GPL_20 = "GPL 2.0"
-    OGA_BY_30 = "OGA-BY 3.0"
-    CC0 = "CC0"
-    LGPL_30 = "LGPL 3.0"
-    LGPL_21 = "LGPL 2.1"
+    # Special case for first page since we may not continue
+    data = await fetch()
+    last_page = parse_last_search_page(data)
+    asset_ids = parse_search_results(data)
+    for asset_id in asset_ids:
+        yield asset_id
 
-
-class AssetFile(NamedTuple):
-    id: str
-    etag: str
-    size: int
-
-    def to_json(self) -> dict:
-        return {
-            "id": self.id,
-            "etag": self.etag,
-            "size": self.size
-        }
-
-
-class Asset:
-    id: str
-    author: str
-    type: AssetType
-    licenses: List[LicenseType]
-    tags: List[str]
-    favorites: int
-    files: List[AssetFile]
-
-    def __init__(self, id, author, type, licenses, tags, favorites, files) -> None:
-        self.id = id
-        self.author = author
-        self.type = type
-        self.licenses = licenses
-        self.tags = tags
-        self.favorites = favorites
-        self.files = files
-
-    def to_json(self) -> dict:
-        return {
-            "id": self.id,
-            "author": self.author,
-            "type": self.type.value,
-            "licenses": [license.value for license in self.licenses],
-            "tags": self.tags,
-            "favorites": self.favorites,
-            "files": [file.to_json() for file in self.files]
-        }
-
-    def __repr__(self) -> str:
-        return json.dumps(self.to_json(), sort_keys=True, indent=4)
+    while page < last_page:
+        page += 1
+        data = await fetch()
+        asset_ids = parse_search_results(data)
+        for asset_id in asset_ids:
+            yield asset_id
 
 
 class Session:
@@ -153,6 +110,88 @@ class Session:
     def __del__(self) -> None:
         self._session.close()
 
+    def search(
+            self, *,
+            keys: Optional[str]=None,
+            title: Optional[str]=None,
+            submitter: Optional[str]=None,
+            sort_by: Optional[str]=None,
+            sort_order: Optional[str]=None,
+            types: Optional[List[AssetType]]=None,
+            licenses: Optional[List[LicenseType]]=None,
+            tags: Optional[List[str]]=None,
+            tag_operation: Optional[str]=None) -> AsyncGenerator[str, None]:
+        """
+
+        :param keys: appears to search the entire page (including comments, tags...)
+        :param title: appears in the asset title
+        :param submitter: part or all of the submitter's username.  Not always the author (eg. "submitted by")
+        :param sort_by: "favorites", "created", "views"
+        :param sort_order: "asc" or "desc"
+        :param types: allowed asset types.  Leave blank to allow all.
+        :param licenses: allowed licenses.  Leave blank to allow all.
+        :param tags: List of tags to match or avoid, depending on ``tag_operation``
+        :param tag_operation: "or", "and", "not", "empty", "not empty"
+        :return:
+        """
+        # 0) Apply defaults
+        keys = keys or ""
+        title = title or ""
+        submitter = submitter or ""
+        sort_by = (sort_by or "favorites").lower()
+        sort_order = (sort_order or "desc").lower()
+        types = types or []
+        licenses = licenses or []
+        tags = tags or []
+        tag_operation = (tag_operation or "or").lower()
+
+        # 1) Validate enums
+        def validate(param, param_name, allowed):
+            if param not in allowed:
+                raise ValueError(f"{param_name} must be one of {allowed} but was {param!r}")
+
+        validate(sort_by, "sort_by", {"favorites", "created", "views"})
+        validate(sort_order, "sort_order", {"asc", "desc"})
+        validate(tag_operation, "tag_operation", {"or", "and", "not", "empty", "not empty"})
+
+        # 2) transform params into request format
+        sort_by = {
+            "favorites": "count",
+            "created": "created",
+            "views": "totalcount",
+        }[sort_by]
+        sort_order = sort_order.upper()
+        types = [Translations.asset_type_search_values[x] for x in types]
+        licenses = [Translations.license_search_values[x] for x in licenses]
+        url = f"{self.config.url}/art-search-advanced?"
+
+        # 3) build values into url
+        quote = urllib.parse.quote_plus
+        base_query = "&".join([
+            url,
+            f"keys={quote(keys)}",
+            f"title={quote(title)}",
+            f"field_art_tags_tid_op={quote(tag_operation)}",
+            f"field_art_tags_tid={quote(','.join(tags))}",
+            f"name={quote(submitter)}",
+            f"sort_by={sort_by}",
+            f"sort_order={sort_order.upper()}",
+            f"items_per_page=144"
+        ])
+        if types:
+            type_query = "&".join([
+                f"field_art_type_tid%5B%5D={type}"
+                for type in types
+            ])
+            base_query += "&" + type_query
+        if licenses:
+            license_query = "&".join([
+                f"field_art_licenses_tid%5B%5D={license}"
+                for license in licenses
+            ])
+            base_query += "&" + license_query
+        return search(self._session, base_query)
+
     async def describe_asset(self, asset_id: str) -> Asset:
         url = f"{self.config.url}/content/{asset_id}"
         async with self._session.get(url) as response:
@@ -176,16 +215,14 @@ class Session:
         return AssetFile(
             id=asset_file_id,
             etag=etag,
-            size=int(headers["Content-Length"])
-        )
+            size=int(headers["Content-Length"]))
 
     async def download_asset(self, asset: Asset, root_dir: Optional[str]=None) -> None:
         if not asset.files:
             return
         tasks = [
             self.download_asset_file(asset.id, asset_file, root_dir=root_dir)
-            for asset_file in asset.files
-        ]
+            for asset_file in asset.files]
         await asyncio.wait(tasks, loop=self.loop, return_when=asyncio.ALL_COMPLETED)
 
     async def download_asset_file(
@@ -228,59 +265,3 @@ class Session:
         self._asset_file_cache[asset_id][asset_file_id] = etag
         cache_file = (pathlib.Path(root_dir) / "cache" / asset_id).expanduser()
         cache_file.write_text(json.dumps(self._asset_file_cache[asset_id], sort_keys=True, indent=4))
-
-
-def parse_asset(asset_id: str, data: bytes) -> dict:
-    text = data.decode("utf-8")
-    soup = bs4.BeautifulSoup(text, "html.parser")
-
-    # 0) author
-    authors = soup.find_all(class_="field-name-author-submitter")
-    assert len(authors) == 1
-    authors = authors[0].find_all("a")
-    for maybe_author in authors:
-        if maybe_author["href"].startswith("/users/"):
-            author = maybe_author["href"][7:]
-            break
-    else:
-        author = None
-
-    # 1) type
-    types = soup.find_all(class_="field-name-field-art-type")
-    assert len(types) == 1
-    type = AssetType(types[0].a.text)
-
-    # 2) licenses
-    license_section = soup.find_all(class_="field-name-field-art-licenses")
-    assert len(license_section) == 1
-    licenses = [
-        LicenseType(license.text)
-        for license in license_section[0].find_all(class_="license-name")]
-
-    # 3) tags
-    tags_section = soup.find_all(class_="field-name-field-art-tags")
-    assert len(tags_section) == 1
-    tags = [tag.text for tag in tags_section[0].find_all("a")]
-
-    # 4) favorites
-    favorites_section = soup.find_all(class_="field-name-favorites")
-    assert len(favorites_section) == 1
-    favorites = int(favorites_section[0].find(class_="field-item").text)
-
-    # 5) files
-    files_section = soup.find_all(class_="field-name-field-art-files")
-    assert len(files_section) == 1
-    files = []
-    for container_el in files_section[0].find_all(class_="file"):
-        url = container_el.a["href"]
-        file_id = urllib.parse.unquote(url).split("/sites/default/files/")[-1]
-        files.append(file_id)
-    return {
-        "id": asset_id,
-        "author": author,
-        "type": type,
-        "licenses": licenses,
-        "tags": tags,
-        "favorites": favorites,
-        "files": files
-    }

@@ -1,6 +1,9 @@
 import asyncio
+from typing import AsyncGenerator, List, TypeVar
 
-__all__ = ["block_on", "enable_speedups"]
+T = TypeVar("T")
+
+__all__ = ["block_on", "collect", "enable_speedups"]
 
 
 class _AsyncProxy:
@@ -19,6 +22,13 @@ class _AsyncProxy:
 
 def block_on(obj):
     return _AsyncProxy(obj)
+
+
+async def collect(generator: AsyncGenerator[T, None]) -> List[T]:
+    results = []
+    async for x in generator:
+        results.append(x)
+    return results
 
 
 def _install_uvloop():
