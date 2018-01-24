@@ -4,10 +4,11 @@ import json
 import pathlib
 import urllib.parse
 from configparser import ConfigParser
-from typing import AsyncGenerator, Dict, List, NamedTuple, Optional
+from typing import AsyncGenerator, Dict, Generator, List, NamedTuple, Optional
 
 import aiohttp
 
+from ._helpers import synchronize_generator
 from .parsing import (
     Translations,
     parse_asset,
@@ -16,6 +17,8 @@ from .parsing import (
 )
 from .primitives import Asset, AssetFile, AssetType, LicenseType
 
+
+__all__ = ["Config", "Session", "SynchronizedSession"]
 
 DEFAULT_CONFIG_LOCATION = "~/.oga/config"
 CONFIG_SECTION_NAME = "oga"
@@ -102,9 +105,9 @@ class Session:
         self.config = config
 
         # Set up connection limiting according to config
-        conn = aiohttp.TCPConnector(limit=config.max_conns, limit_per_host=config.max_conns)
+        conn = aiohttp.TCPConnector(limit=config.max_conns, limit_per_host=config.max_conns, loop=loop)
         self._session = aiohttp.ClientSession(connector=conn, loop=loop)
-        self._asset_file_cache = {}  # type: Dict[str, Dict[str, str]]
+        self._file_manager = LocalFileManager(config)
 
     def __del__(self) -> None:
         self._session.close()
@@ -115,30 +118,28 @@ class Session:
             title: Optional[str]=None,
             submitter: Optional[str]=None,
             sort_by: Optional[str]=None,
-            sort_order: Optional[str]=None,
+            descending: Optional[bool]=None,
             types: Optional[List[AssetType]]=None,
             licenses: Optional[List[LicenseType]]=None,
             tags: Optional[List[str]]=None,
             tag_operation: Optional[str]=None) -> AsyncGenerator[str, None]:
         """
-
         :param keys: appears to search the entire page (including comments, tags...)
         :param title: appears in the asset title
         :param submitter: part or all of the submitter's username.  Not always the author (eg. "submitted by")
         :param sort_by: "favorites", "created", "views"
-        :param sort_order: "asc" or "desc"
+        :param descending: True if sorting descending, False for ascending.
         :param types: allowed asset types.  Leave blank to allow all.
         :param licenses: allowed licenses.  Leave blank to allow all.
         :param tags: List of tags to match or avoid, depending on ``tag_operation``
         :param tag_operation: "or", "and", "not", "empty", "not empty"
-        :return:
         """
         # 0) Apply defaults
         keys = keys or ""
         title = title or ""
         submitter = submitter or ""
         sort_by = (sort_by or "favorites").lower()
-        sort_order = (sort_order or "desc").lower()
+        descending = True if descending is None else descending
         types = types or []
         licenses = licenses or []
         tags = tags or []
@@ -150,7 +151,6 @@ class Session:
                 raise ValueError(f"{param_name} must be one of {allowed} but was {param!r}")
 
         validate(sort_by, "sort_by", {"favorites", "created", "views"})
-        validate(sort_order, "sort_order", {"asc", "desc"})
         validate(tag_operation, "tag_operation", {"or", "and", "not", "empty", "not empty"})
 
         # 2) transform params into request format
@@ -159,7 +159,7 @@ class Session:
             "created": "created",
             "views": "totalcount",
         }[sort_by]
-        sort_order = sort_order.upper()
+        sort_order = "DESC" if descending else "ASC"
         types = [Translations.asset_type_search_values[x] for x in types]
         licenses = [Translations.license_search_values[x] for x in licenses]
         url = f"{self.config.url}/art-search-advanced?"
@@ -174,7 +174,7 @@ class Session:
             f"field_art_tags_tid={quote(','.join(tags))}",
             f"name={quote(submitter)}",
             f"sort_by={sort_by}",
-            f"sort_order={sort_order.upper()}",
+            f"sort_order={sort_order}",
             f"items_per_page=144"
         ])
         if types:
@@ -216,51 +216,154 @@ class Session:
             etag=etag,
             size=int(headers["Content-Length"]))
 
-    async def download_asset(self, asset: Asset, root_dir: Optional[str]=None) -> None:
+    async def download_asset(self, asset: Asset) -> None:
         if not asset.files:
             return
         tasks = [
-            self.download_asset_file(asset.id, asset_file, root_dir=root_dir)
+            self.download_asset_file(asset.id, asset_file)
             for asset_file in asset.files]
         await asyncio.wait(tasks, loop=self.loop, return_when=asyncio.ALL_COMPLETED)
 
-    async def download_asset_file(
-            self, asset_id: str, asset_file: AssetFile, root_dir: Optional[str]=None) -> None:
-        if root_dir is None:
-            root_dir = self.config.root_dir
-
+    async def download_asset_file(self, asset_id: str, asset_file: AssetFile) -> None:
+        current_etag = self._file_manager.get_etag(asset_id=asset_id, asset_file_id=asset_file.id)
         # cache hit
-        current_etag = self._get_cache_info(asset_id, asset_file.id, root_dir)
-        if current_etag is not None and current_etag == asset_file.etag:
+        if current_etag and current_etag == asset_file.etag:
             return
 
-        dest_parent = (pathlib.Path(root_dir) / "content" / asset_id).expanduser()
-        dest_parent.mkdir(parents=True, exist_ok=True)
-        dest = dest_parent / asset_file.id
-
-        # cache miss
         url = f"{self.config.url}/sites/default/files/{asset_file.id}"
         async with self._session.get(url) as response:
-            dest.write_bytes(await response.read())
-            # update cache
-            self._update_cache_info(asset_id, asset_file.id, root_dir, asset_file.etag)
+            data = await response.read()
+            self._file_manager.save(
+                asset_id=asset_id,
+                asset_file_id=asset_file.id,
+                etag=asset_file.etag,
+                data=data
+            )
 
-    def _get_cache_info(self, asset_id: str, asset_file_id: str, root_dir: str) -> Optional[str]:
-        if asset_id not in self._asset_file_cache:
-            cache_dir = (pathlib.Path(root_dir) / "cache").expanduser()
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            cache_file = cache_dir / asset_id
-            try:
-                data = cache_file.read_text()
-            except FileNotFoundError:
-                data = "{}"
-                cache_file.write_text(data)
-            self._asset_file_cache[asset_id] = json.loads(data)
-        return self._asset_file_cache[asset_id].get(asset_file_id)
 
-    def _update_cache_info(self, asset_id: str, asset_file_id: str, root_dir: str, etag: str) -> None:
-        if asset_id not in self._asset_file_cache:
-            self._get_cache_info(asset_id, asset_file_id, root_dir)
-        self._asset_file_cache[asset_id][asset_file_id] = etag
-        cache_file = (pathlib.Path(root_dir) / "cache" / asset_id).expanduser()
-        cache_file.write_text(json.dumps(self._asset_file_cache[asset_id], sort_keys=True, indent=4))
+class LocalFileManager:
+    def __init__(self, config: Config) -> None:
+        self.config = config
+        self._cache = {}  # type: Dict[str, Dict[str, str]]
+
+    def load(self, *, asset_id: str, asset_file_id: str) -> Optional[bytes]:
+        asset_file_path = self._path_to_content_dir(asset_id) / asset_file_id
+        try:
+            return asset_file_path.read_bytes()
+        except FileNotFoundError:
+            return None
+
+    def save(self, *, asset_id: str, asset_file_id: str, etag: str, data: bytes) -> None:
+        asset_file_path = self._path_to_content_dir(asset_id) / asset_file_id
+        asset_file_path.write_bytes(data)
+        self._set_etag(asset_id=asset_id, asset_file_id=asset_file_id, etag=etag)
+
+    def delete(self, *, asset_id: str, asset_file_id: str) -> None:
+        asset_file_path = self._path_to_content_dir(asset_id) / asset_file_id
+        asset_file_path.unlink()
+        self._clear_etag(asset_id=asset_id, asset_file_id=asset_file_id)
+
+    def get_etag(self, *, asset_id: str, asset_file_id: str) -> Optional[str]:
+        """
+        Also ensures asset file exists locally.
+        File checksums aren't validated yet, because OGA doesn't publish them.
+        """
+        self._load_cache(asset_id=asset_id, force=False)
+        last_etag = self._cache[asset_id].get(asset_file_id, None)
+        asset_file_path = self._path_to_content_dir(asset_id) / asset_file_id
+        if asset_file_path.exists():
+            return last_etag
+        # file doesn't exist but cache is stale
+        if last_etag:
+            self._clear_etag(asset_id=asset_id, asset_file_id=asset_file_id)
+        return None
+
+    def _set_etag(self, *, asset_id: str, asset_file_id: str, etag: str) -> None:
+        self._load_cache(asset_id=asset_id, force=True)
+        self._cache[asset_id][asset_file_id] = etag
+        self._save_cache(asset_id=asset_id)
+
+    def _clear_etag(self, *, asset_id: str, asset_file_id: str) -> None:
+        self._load_cache(asset_id=asset_id, force=True)
+        self._cache[asset_id][asset_file_id] = None
+        self._save_cache(asset_id=asset_id)
+
+    def _load_cache(self, *, asset_id: str, force: bool=False) -> None:
+        if asset_id in self._cache and not force:
+            return
+        cache_file = self._path_to_cache(asset_id)
+        try:
+            data = json.loads(cache_file.read_text())
+        except (FileNotFoundError, json.JSONDecodeError):
+            cache_file.write_text("{}")
+            data = {}
+        self._cache[asset_id] = data
+
+    def _save_cache(self, *, asset_id: str) -> None:
+        self._load_cache(asset_id=asset_id, force=False)
+        cache_file = self._path_to_cache(asset_id)
+        cache_file.write_text(json.dumps(self._cache[asset_id], sort_keys=True, indent=4))
+
+    def _path_to_cache(self, asset_id: str) -> pathlib.Path:
+        path = (pathlib.Path(self.config.root_dir) / "cache" / asset_id).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def _path_to_content_dir(self, asset_id: str) -> pathlib.Path:
+        path = (pathlib.Path(self.config.root_dir) / "content" / asset_id).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+
+class SynchronizedSession:
+    def __init__(self, session: Optional[Session]=None):
+        if session is None:
+            session = Session()
+        self._session = session
+
+    def search(
+            self, *,
+            keys: Optional[str]=None,
+            title: Optional[str]=None,
+            submitter: Optional[str]=None,
+            sort_by: Optional[str]=None,
+            descending: Optional[bool] = None,
+            types: Optional[List[AssetType]]=None,
+            licenses: Optional[List[LicenseType]]=None,
+            tags: Optional[List[str]]=None,
+            tag_operation: Optional[str]=None) -> Generator[str, None, None]:
+        """
+        :param keys: appears to search the entire page (including comments, tags...)
+        :param title: appears in the asset title
+        :param submitter: part or all of the submitter's username.  Not always the author (eg. "submitted by")
+        :param sort_by: "favorites", "created", "views"
+        :param descending: True if sorting descending, False for ascending.
+        :param types: allowed asset types.  Leave blank to allow all.
+        :param licenses: allowed licenses.  Leave blank to allow all.
+        :param tags: List of tags to match or avoid, depending on ``tag_operation``
+        :param tag_operation: "or", "and", "not", "empty", "not empty"
+        """
+        loop = self._session.loop
+        search_task = self._session.search(
+            keys=keys, title=title, submitter=submitter, sort_by=sort_by, descending=descending, types=types,
+            licenses=licenses, tags=tags, tag_operation=tag_operation
+        )
+        return synchronize_generator(search_task, loop=loop)
+
+    def batch_describe_assets(self, asset_ids: List[str]) -> Dict[str, Asset]:
+        loop = self._session.loop
+        tasks = [self._session.describe_asset(asset_id) for asset_id in asset_ids]
+        if not tasks:
+            return {}
+        wait_for = asyncio.wait(tasks, loop=loop, return_when=asyncio.ALL_COMPLETED)
+        done, _ = loop.run_until_complete(wait_for)
+        assets = [task.result() for task in done]
+        return {asset.id: asset for asset in assets}
+
+    def batch_download_assets(self, assets: List[Asset]) -> None:
+        loop = self._session.loop
+        tasks = [self._session.download_asset(asset) for asset in assets]
+        if not tasks:
+            return
+        wait_for = asyncio.wait(tasks, loop=loop, return_when=asyncio.ALL_COMPLETED)
+        loop.run_until_complete(wait_for)
