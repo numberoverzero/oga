@@ -16,7 +16,7 @@ Download an asset in 5 lines:
 
 .. code-block:: python
 
-    >>> from oga.core import Session
+    >>> from oga import Session
     >>> session = Session()
     >>> asset_id = "imminent-threat"
     >>> asset = session.loop.run_until_complete(session.describe_asset(asset_id))
@@ -30,7 +30,7 @@ Let's take advantage of the async client and download a few assets at once:
 .. code-block:: python
 
     >>> import asyncio
-    >>> from oga.core import Config, Session
+    >>> from oga import Config, Session
     >>> config = Config.default()
     >>> config.max_conns = 200  # please be nice
     >>> session = Session(config)
@@ -59,8 +59,7 @@ Caching
 
 This library uses a very simple (dumb) tracker to avoid re-downloading asset files based on the ``ETag`` of each
 file.  Because OGA doesn't publish a content hash it's possible to modify the downloaded file and you'll break the
-tracking.  Because the tracker is dumb, it doesn't even check if the file still exists in the target directory.  You
-need to remove the tracking file itself to invalidate the cache.  (Pull Requests welcome!  Someone fix this, please!)
+tracking.
 
 Searching For Assets
 ====================
@@ -69,7 +68,7 @@ Searches use asynchronous generators so that you don't need to fetch every resul
 
 .. code-block:: python
 
-    from oga.core import Session
+    from oga import Session
     session = Session()
 
     # submitter name begins with or contains 'xmo'
@@ -85,3 +84,35 @@ Searches use asynchronous generators so that you don't need to fetch every resul
     results = session.loop.run_until_complete(collect(search))
     print(results)
     # ['graveyard-and-crypt', 'my-blender-skins', 'posable-poultry']
+
+Synchronous Client
+==================
+
+The synchronous client exposes batched operations of ``Session.download_asset`` and ``Session.describe_asset``.
+
+
+.. code-block:: python
+
+    >>> from oga import SynchronizedSession
+    >>> session = SynchronizedSession()
+    >>> assets = session.batch_describe_assets([
+    ...     "free-music-pack",
+    ...     "battle-theme-a",
+    ...     "rise-of-spirit",
+    ...     "town-theme-rpg",
+    ...     "soliloquy"
+    ... ])
+    >>> session.batch_download_assets(assets.values())
+
+TODO
+====
+
+Roughly ordered by priority.
+
+* cli
+* upload to pypi?
+* docstrings
+* community feature requests?
+* unit tests
+* rtd
+* hook points for status updates (eg. progress bars for long downloads)
