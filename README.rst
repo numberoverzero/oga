@@ -153,13 +153,14 @@ More asset details are available using ``--verbose``::
     }
 
 
-Downloading Assets
-==================
+Using the Library
+=================
 
-The primary reason this library exists.  I was sick of clicking on each file in an asset.
+Downloading Assets
+------------------
 
 One Asset
----------
+^^^^^^^^^
 
 Download an asset in 5 lines:
 
@@ -172,7 +173,7 @@ Download an asset in 5 lines:
     >>> session.loop.run_until_complete(session.download_asset(asset))
 
 Multiple Assets
----------------
+^^^^^^^^^^^^^^^
 
 Let's take advantage of the async client and download a few assets at once:
 
@@ -204,14 +205,14 @@ Let's take advantage of the async client and download a few assets at once:
     >>> session.loop.run_until_complete(task)
 
 Caching
--------
+^^^^^^^
 
 This library uses a very simple (dumb) tracker to avoid re-downloading asset files based on the ``ETag`` of each
 file.  Because OGA doesn't publish a content hash it's possible to modify the downloaded file and you'll break the
 tracking.
 
 Searching For Assets
-====================
+--------------------
 
 Searches use asynchronous generators so that you don't need to fetch every result to begin processing them.
 
@@ -235,7 +236,7 @@ Searches use asynchronous generators so that you don't need to fetch every resul
     # ['graveyard-and-crypt', 'my-blender-skins', 'posable-poultry']
 
 Synchronous Client
-==================
+------------------
 
 The synchronous client exposes batched operations of ``Session.download_asset`` and ``Session.describe_asset``.
 
