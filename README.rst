@@ -4,6 +4,132 @@ OpenGameArt Asset Management
 Primarily exists to query and download assets from OpenGameArt.  This library does not manage collections, post or edit
 comments.  In the future, it may be used to upload or modify your assets.
 
+Installation
+============
+
+::
+
+    pip install oga
+
+Using the CLI
+=============
+
+The cli can be used for searching, downloading, and describing assets.
+
+::
+
+    $ oga --help
+    Usage: oga [OPTIONS] COMMAND [ARGS]...
+
+      Search and download assets from OpenGameArt.org
+
+    Options:
+      --config-path PATH
+      --root-dir DIRECTORY
+      --url TEXT
+      --max-conns INTEGER
+      --help                Show this message and exit.
+
+    Commands:
+      describe  Look up a single ASSET.
+      download  Download files for a single ASSET.
+      search    Search for an asset.
+
+Sample Commands
+---------------
+
+Describe a single asset.  The asset id is everything after ``/content/`` in the OpenGameArt url::
+
+    $ oga describe imminent-threat
+    imminent-threat music (24 favorites, 23 tags)
+
+    $ oga describe imminent-threat --verbose
+    {
+        "author": "matthew-pablo",
+        "favorites": 24,
+        "files": [
+            {
+                "etag": "2e9386d-4f63b81cc5d00",
+                "id": "Imminent Threat Collection.zip",
+                "size": 48838765
+            }
+        ],
+        "id": "imminent-threat",
+        "licenses": [
+            "CC-BY-SA 3.0"
+        ],
+        "tags": [
+            "Action",
+            "stealth",
+            # ...
+        ],
+        "type": "Music"
+    }
+
+Download a single asset::
+
+    $ oga download imminent-threat
+
+A simple per-file etag-based cache is used to avoid re-downloading the same blobs::
+
+    $ time oga download imminent-threat
+
+    real	0m8.443s
+    user	0m1.944s
+    sys	0m0.592s
+    $ time oga download imminent-threat
+
+    real	0m0.780s
+    user	0m0.444s
+    sys	0m0.080s
+
+In the future, describe and download operations should be much faster for recently-queried packages since today,
+the asset etag is not checked and the asset description is not cached (only the file etags are).
+
+Output Format
+-------------
+
+The default output for an asset is a short summary, which can be cut and piped to other commands.  Its format is::
+
+    <asset_id> <type> (<\d+> favorites, <\d+> tags)
+
+    # oga search --submitter xmo --type 3d --type texture
+    graveyard-and-crypt 3d (9 favorites, 11 tags)
+    my-blender-skins texture (6 favorites, 9 tags)
+    posable-poultry 3d (5 favorites, 9 tags)
+
+Using the usual tools, you can pipe this to other commands eg. download::
+
+    oga search --submitter xmo --type 3d --type texture \
+      | cut -d" " -f1 \
+      | xargs -n1 oga download
+
+More asset details are available using ``--verbose``::
+
+    $ oga describe imminent-threat --verbose
+    {
+        "author": "matthew-pablo",
+        "favorites": 24,
+        "files": [
+            {
+                "etag": "2e9386d-4f63b81cc5d00",
+                "id": "Imminent Threat Collection.zip",
+                "size": 48838765
+            }
+        ],
+        "id": "imminent-threat",
+        "licenses": [
+            "CC-BY-SA 3.0"
+        ],
+        "tags": [
+            "Action",
+            "stealth",
+            # ...
+        ],
+        "type": "Music"
+    }
+
+
 Downloading Assets
 ==================
 
@@ -109,8 +235,6 @@ TODO
 
 Roughly ordered by priority.
 
-* cli
-* upload to pypi?
 * docstrings
 * community feature requests?
 * unit tests
