@@ -12,9 +12,7 @@ for line in (HERE / "oga" / "__init__.py").read_text().split("\n"):
 REQUIREMENTS = [
     "aiohttp>=2.3",
     "beautifulsoup4>=4.6",
-    "click>=6.7",
-    "falcon>=1.4",
-    "requests>=2.8",
+    "click>=6.7"
 ]
 
 if __name__ == "__main__":
