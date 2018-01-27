@@ -4,7 +4,7 @@ import json
 import pathlib
 import urllib.parse
 from configparser import ConfigParser
-from typing import AsyncGenerator, Dict, Generator, List, NamedTuple, Optional
+from typing import AsyncGenerator, Dict, Generator, List, Optional
 
 import aiohttp
 
@@ -24,10 +24,15 @@ DEFAULT_CONFIG_LOCATION = "~/.oga/config"
 CONFIG_SECTION_NAME = "oga"
 
 
-class Config(NamedTuple):
+class Config:
     url: str
     max_conns: int
     root_dir: str
+
+    def __init__(self, *, url: str, max_conns: int, root_dir: str) -> None:
+        self.url = url
+        self.max_conns = max_conns
+        self.root_dir = root_dir
 
     @classmethod
     def default(cls):
@@ -310,8 +315,8 @@ class LocalFileManager:
         return path
 
     def _path_to_content_dir(self, asset_id: str) -> pathlib.Path:
-        path = (pathlib.Path(self.config.root_dir) / "content" / asset_id).expanduser()
-        path.parent.mkdir(parents=True, exist_ok=True)
+        path = (pathlib.Path(self.config.root_dir) / "assets" / asset_id).expanduser()
+        path.mkdir(parents=True, exist_ok=True)
         return path
 
 

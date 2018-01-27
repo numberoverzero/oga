@@ -31,4 +31,9 @@ if __name__ == "__main__":
         include_package_data=True,
         packages=find_packages(exclude=("docs", "examples", "scripts", "tests")),
         install_requires=REQUIREMENTS,
+        entry_points={
+            "console_scripts": [
+                "oga = oga.main.cli:cli"
+            ]
+        }
     )
