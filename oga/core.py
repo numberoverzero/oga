@@ -114,8 +114,8 @@ class Session:
         self._session = aiohttp.ClientSession(connector=conn, loop=loop)
         self._file_manager = LocalFileManager(config)
 
-    def __del__(self) -> None:
-        self._session.close()
+    async def close(self) -> None:
+        await self._session.close()
 
     def search(
             self, *,

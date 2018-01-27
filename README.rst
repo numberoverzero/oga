@@ -86,6 +86,29 @@ A simple per-file etag-based cache is used to avoid re-downloading the same blob
 In the future, describe and download operations should be much faster for recently-queried packages since today,
 the asset etag is not checked and the asset description is not cached (only the file etags are).
 
+Search for assets::
+
+    $ oga search --type music --tag epic --tag viking
+    heroic-demise-updated-version music (86 favorites, 12 tags)
+    battle-theme-a music (76 favorites, 6 tags)
+    rise-of-spirit music (71 favorites, 4 tags)
+    space-boss-battle-theme music (57 favorites, 31 tags)
+    rpg-battle-theme-the-last-encounter-0 music (53 favorites, 26 tags)
+    dark-descent music (44 favorites, 8 tags)
+    dream-raid-cinematic-action-soundtrack music (44 favorites, 17 tags)
+    space-orchestral music (41 favorites, 3 tags)
+    # ...
+
+    $ oga search --type music --tag epic --tag viking --tag-op and
+    # no results with both tags!
+
+    $ oga search --type music --license cc0 --tag epic
+    battle-theme-a music (76 favorites, 6 tags)
+    boss-battle-music music (19 favorites, 3 tags)
+    new-sunrise music (9 favorites, 15 tags)
+    the-rush music (8 favorites, 13 tags)
+    # ...
+
 Output Format
 -------------
 

@@ -5,7 +5,7 @@ from typing import List, Optional
 import click
 
 from oga.core import Config, Session
-from oga.primitives import AssetType
+from oga.primitives import AssetType, LicenseType
 
 
 def init_config(
@@ -23,6 +23,15 @@ def init_config(
     return config
 
 
+def create_session(context: click.Context, config: Config) -> None:
+    session = Session(config)
+    context.obj = session
+
+    def close_session():
+        session.loop.run_until_complete(session.close())
+    context.call_on_close(close_session)
+
+
 cli_type_map = {
     "2d": AssetType.ART_2D,
     "3d": AssetType.ART_3D,
@@ -33,6 +42,18 @@ cli_type_map = {
     "doc": AssetType.DOCUMENT,
 }
 rev_cli_type_map = {v: k for k, v in cli_type_map.items()}
+license_type_map = {
+    "cc-by-40": LicenseType.CC_BY_40,
+    "cc-by-30": LicenseType.CC_BY_30,
+    "cc-by-sa-40": LicenseType.CC_BY_SA_40,
+    "cc-by-sa-30": LicenseType.CC_BY_SA_30,
+    "gpl-30": LicenseType.GPL_30,
+    "gpl-20": LicenseType.GPL_20,
+    "oga-by-30": LicenseType.OGA_BY_30,
+    "cc0": LicenseType.CC0,
+    "lgpl-30": LicenseType.LGPL_30,
+    "lgpl-21": LicenseType.LGPL_21,
+}
 
 
 async def cli_describe(session: Session, asset_id: str, verbose: bool) -> str:
@@ -59,8 +80,7 @@ async def cli_describe(session: Session, asset_id: str, verbose: bool) -> str:
 def cli(ctx, config_path: Optional[str], root_dir: Optional[str], url: Optional[str], max_conns: Optional[int]):
     """Search and download assets from OpenGameArt.org"""
     config = init_config(config_path, root_dir, url, max_conns)
-    session = Session(config)
-    ctx.obj = session
+    create_session(ctx, config)
 
 
 @cli.command("describe")
@@ -89,16 +109,18 @@ def download_asset(session: Session, asset: str):
 @click.option("--submitter", help="Search the submitter name", type=str, default=None)
 @click.option("--sort-by", type=click.Choice(["favorites", "created", "views"]), default="favorites")
 @click.option("--descending/--ascending", help="sort order", is_flag=True, default=True)
-@click.option("--type", type=click.Choice(["2d", "3d", "concept", "texture", "music", "sfx", "doc"]), multiple=True)
+@click.option("--type", type=click.Choice(list(cli_type_map.keys())), multiple=True)
+@click.option("--license", type=click.Choice(list(license_type_map.keys())), multiple=True)
 @click.option("--tag", help="freeform tag", multiple=True, type=str)
 @click.option("--tag-op", type=click.Choice(["or", "and", "not", "empty", "not-empty"]), default="or")
 @click.pass_obj
 def search_assets(
         session: Session, verbose: bool,
         keys: Optional[str], title: Optional[str], submitter: Optional[str],
-        sort_by: str, descending: bool, type: List[str], tag: List[str], tag_op: str):
+        sort_by: str, descending: bool, type: List[str], license: List[str], tag: List[str], tag_op: str):
     """Search for an asset."""
-    types = [cli_type_map[t] for t in type]
+    types = [cli_type_map[x] for x in type]
+    licenses = [license_type_map[x] for x in license]
     search = session.search(
         keys=keys,
         title=title,
@@ -106,6 +128,7 @@ def search_assets(
         sort_by=sort_by,
         descending=descending,
         types=types,
+        licenses=licenses,
         tags=tag,
         tag_operation=tag_op
     )
