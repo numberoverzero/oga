@@ -41,7 +41,7 @@ async def collect(generator: AsyncGenerator[T, None]) -> List[T]:
 
 def synchronize_generator(
         async_gen: AsyncGenerator[T, None],
-        loop: Optional[asyncio.BaseEventLoop]=None) -> Generator[T, None, None]:
+        loop: Optional[asyncio.BaseEventLoop] = None) -> Generator[T, None, None]:
     """
     Maps ``__anext__`` to ``__next__`` to synchronously interact with async generators.
 
@@ -76,15 +76,30 @@ def synchronize_generator(
 def _install_uvloop():
     try:
         import asyncio
+        # noinspection PyPackageRequirements
         import uvloop
         asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
         logger.debug("installed uvloop.EventLoopPolicy")
+        return True
     except ImportError:
-        pass
+        return False
 
 
-def enable_speedups():
-    _install_uvloop()
+def _fix_windows_selector():
+    # https://github.com/numberoverzero/oga/issues/1
+    # https://github.com/encode/httpx/issues/914#issuecomment-622586610
+    # https://github.com/aio-libs/aiohttp/issues/4324
+    # https://bugs.python.org/issue39232
+    import sys
+    if sys.version_info[0] == 3 and sys.version_info[1] >= 8 and sys.platform.startswith("win"):
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        return True
+    return False
 
 
-enable_speedups()
+def patch_event_loop_policy():
+    if not _install_uvloop():
+        _fix_windows_selector()
+
+
+patch_event_loop_policy()

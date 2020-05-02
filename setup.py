@@ -10,9 +10,9 @@ for line in (HERE / "oga" / "__init__.py").read_text().split("\n"):
         VERSION = eval(line.split("=")[-1])
 
 REQUIREMENTS = [
-    "aiohttp>=2.3",
-    "beautifulsoup4>=4.6",
-    "click>=6.7"
+    "aiohttp>=3.6",
+    "beautifulsoup4>=4.9",
+    "click>=7.1"
 ]
 
 if __name__ == "__main__":

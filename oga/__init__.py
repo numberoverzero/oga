@@ -1,4 +1,4 @@
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 
 # Hooray for uvloop!
 from . import _helpers
