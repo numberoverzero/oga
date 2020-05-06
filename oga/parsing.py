@@ -77,7 +77,14 @@ def parse_asset(asset_id: str, data: bytes) -> dict:
         url = container_el.a["href"]
         file_id = urllib.parse.unquote(url).split("/sites/default/files/")[-1]
         files.append(file_id)
-    return {
+
+    # 6) attribution
+    attribution_section = soup.select('.field-name-field-art-attribution .field-items')
+    attribution = None
+    if len(attribution_section) == 1:
+        attribution = attribution_section[0].text.strip()
+    
+    ret = {
         "id": asset_id,
         "author": author,
         "type": type,
@@ -86,6 +93,10 @@ def parse_asset(asset_id: str, data: bytes) -> dict:
         "favorites": favorites,
         "files": files}
 
+    if attribution != None:
+        ret["attribution"] = attribution
+
+    return ret
 
 def parse_search_results(data: bytes) -> List[str]:
     text = data.decode("utf-8")

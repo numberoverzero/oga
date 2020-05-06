@@ -49,8 +49,9 @@ class Asset:
     tags: List[str]
     favorites: int
     files: List[AssetFile]
+    attribution: str
 
-    def __init__(self, id, author, type, licenses, tags, favorites, files) -> None:
+    def __init__(self, id, author, type, licenses, tags, favorites, files, attribution=None) -> None:
         self.id = id
         self.author = author
         self.type = type
@@ -58,9 +59,10 @@ class Asset:
         self.tags = tags
         self.favorites = favorites
         self.files = files
+        self.attribution = attribution
 
     def to_json(self) -> dict:
-        return {
+        ret = {
             "id": self.id,
             "author": self.author,
             "type": self.type.value,
@@ -68,6 +70,11 @@ class Asset:
             "tags": self.tags,
             "favorites": self.favorites,
             "files": [file.to_json() for file in self.files]}
+
+        if self.attribution != None:
+            ret["attribution"] = self.attribution
+
+        return ret
 
     def __repr__(self) -> str:
         return json.dumps(self.to_json(), sort_keys=True, indent=4)
