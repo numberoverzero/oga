@@ -84,19 +84,17 @@ def parse_asset(asset_id: str, data: bytes) -> dict:
     if len(attribution_section) == 1:
         attribution = attribution_section[0].text.strip()
     
-    ret = {
+    return {
         "id": asset_id,
         "author": author,
         "type": type,
         "licenses": licenses,
         "tags": tags,
         "favorites": favorites,
-        "files": files}
+        "files": files,
+        "attribution": attribution
+    }
 
-    if attribution != None:
-        ret["attribution"] = attribution
-
-    return ret
 
 def parse_search_results(data: bytes) -> List[str]:
     text = data.decode("utf-8")

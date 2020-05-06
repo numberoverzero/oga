@@ -62,19 +62,16 @@ class Asset:
         self.attribution = attribution
 
     def to_json(self) -> dict:
-        ret = {
+        return {
             "id": self.id,
             "author": self.author,
             "type": self.type.value,
             "licenses": [license.value for license in self.licenses],
             "tags": self.tags,
             "favorites": self.favorites,
-            "files": [file.to_json() for file in self.files]}
-
-        if self.attribution != None:
-            ret["attribution"] = self.attribution
-
-        return ret
+            "files": [file.to_json() for file in self.files],
+            "attribution": self.attribution
+        }
 
     def __repr__(self) -> str:
         return json.dumps(self.to_json(), sort_keys=True, indent=4)
