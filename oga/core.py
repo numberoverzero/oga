@@ -42,7 +42,7 @@ class Config:
             root_dir="~/.oga")
 
     @classmethod
-    def from_file(cls, file_path: Optional[str]=None) -> Optional["Config"]:
+    def from_file(cls, file_path: Optional[str] = None) -> Optional["Config"]:
         file_path = file_path or DEFAULT_CONFIG_LOCATION
         try:
             filename = pathlib.Path(file_path).expanduser().resolve()
@@ -101,7 +101,7 @@ class Session:
         >>> run(session.download_asset(asset))
 
     """
-    def __init__(self, config: Optional[Config]=None, loop: Optional[asyncio.AbstractEventLoop]=None) -> None:
+    def __init__(self, config: Optional[Config] = None, loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
         if config is None:
             config = Config.default()
         if loop is None:
@@ -119,15 +119,15 @@ class Session:
 
     def search(
             self, *,
-            keys: Optional[str]=None,
-            title: Optional[str]=None,
-            submitter: Optional[str]=None,
-            sort_by: Optional[str]=None,
-            descending: Optional[bool]=None,
-            types: Optional[List[AssetType]]=None,
-            licenses: Optional[List[LicenseType]]=None,
-            tags: Optional[List[str]]=None,
-            tag_operation: Optional[str]=None) -> AsyncGenerator[str, None]:
+            keys: Optional[str] = None,
+            title: Optional[str] = None,
+            submitter: Optional[str] = None,
+            sort_by: Optional[str] = None,
+            descending: Optional[bool] = None,
+            types: Optional[List[AssetType]] = None,
+            licenses: Optional[List[LicenseType]] = None,
+            tags: Optional[List[str]] = None,
+            tag_operation: Optional[str] = None) -> AsyncGenerator[str, None]:
         """
         :param keys: appears to search the entire page (including comments, tags...)
         :param title: appears in the asset title
@@ -321,22 +321,22 @@ class LocalFileManager:
 
 
 class SynchronizedSession:
-    def __init__(self, session: Optional[Session]=None):
+    def __init__(self, session: Optional[Session] = None):
         if session is None:
             session = Session()
         self._session = session
 
     def search(
             self, *,
-            keys: Optional[str]=None,
-            title: Optional[str]=None,
-            submitter: Optional[str]=None,
-            sort_by: Optional[str]=None,
+            keys: Optional[str] = None,
+            title: Optional[str] = None,
+            submitter: Optional[str] = None,
+            sort_by: Optional[str] = None,
             descending: Optional[bool] = None,
-            types: Optional[List[AssetType]]=None,
-            licenses: Optional[List[LicenseType]]=None,
-            tags: Optional[List[str]]=None,
-            tag_operation: Optional[str]=None) -> Generator[str, None, None]:
+            types: Optional[List[AssetType]] = None,
+            licenses: Optional[List[LicenseType]] = None,
+            tags: Optional[List[str]] = None,
+            tag_operation: Optional[str] = None) -> Generator[str, None, None]:
         """
         :param keys: appears to search the entire page (including comments, tags...)
         :param title: appears in the asset title
