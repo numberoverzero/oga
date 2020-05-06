@@ -41,30 +41,7 @@ Sample Commands
 Describe a single asset.  The asset id is everything after ``/content/`` in the OpenGameArt url::
 
     $ oga describe imminent-threat
-    imminent-threat music (24 favorites, 23 tags)
-
-    $ oga describe imminent-threat --verbose
-    {
-        "author": "matthew-pablo",
-        "favorites": 24,
-        "files": [
-            {
-                "etag": "2e9386d-4f63b81cc5d00",
-                "id": "Imminent Threat Collection.zip",
-                "size": 48838765
-            }
-        ],
-        "id": "imminent-threat",
-        "licenses": [
-            "CC-BY-SA 3.0"
-        ],
-        "tags": [
-            "Action",
-            "stealth",
-            # ...
-        ],
-        "type": "Music"
-    }
+    imminent-threat music (37 favorites, 22 tags)
 
 Download a single asset::
 
@@ -74,13 +51,13 @@ A simple per-file etag-based cache is used to avoid re-downloading the same blob
 
     $ time oga download imminent-threat
 
-    real	0m8.443s
-    user	0m1.944s
+    real    0m8.443s
+    user    0m1.944s
     sys	0m0.592s
     $ time oga download imminent-threat
 
-    real	0m0.780s
-    user	0m0.444s
+    real    0m0.780s
+    user    0m0.444s
     sys	0m0.080s
 
 In the future, describe and download operations should be much faster for recently-queried packages since today,
@@ -117,9 +94,9 @@ The default output for an asset is a short summary, which can be cut and piped t
     <asset_id> <type> (<\d+> favorites, <\d+> tags)
 
     # oga search --submitter xmo --type 3d --type texture
-    graveyard-and-crypt 3d (9 favorites, 11 tags)
-    my-blender-skins texture (6 favorites, 9 tags)
-    posable-poultry 3d (5 favorites, 9 tags)
+    graveyard-and-crypt 3d (10 favorites, 11 tags)
+    my-blender-skins texture (7 favorites, 9 tags)
+    posable-poultry 3d (6 favorites, 9 tags)
 
 Using the usual tools, you can pipe this to other commands eg. download::
 
@@ -131,8 +108,9 @@ More asset details are available using ``--verbose``::
 
     $ oga describe imminent-threat --verbose
     {
+        "attribution": null,
         "author": "matthew-pablo",
-        "favorites": 24,
+        "favorites": 37,
         "files": [
             {
                 "etag": "2e9386d-4f63b81cc5d00",
@@ -147,11 +125,29 @@ More asset details are available using ``--verbose``::
         "tags": [
             "Action",
             "stealth",
-            # ...
+            "Battle",
+            "combat",
+            "covert",
+            "Rock",
+            "hard",
+            "metal",
+            "hardcore",
+            "piano",
+            "soft",
+            "scary",
+            "horror",
+            "suspense",
+            "epic",
+            "drumset",
+            "title",
+            "violent",
+            "dark",
+            "serious",
+            "metal gear",
+            "call of duty"
         ],
         "type": "Music"
     }
-
 
 Using the Library
 =================
