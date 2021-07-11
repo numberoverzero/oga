@@ -61,7 +61,7 @@ class Config:
             root_dir=section.get("root_dir", fallback=default.root_dir))
 
 
-async def search(session: aiohttp.ClientSession, base_query: str) -> AsyncGenerator[str, None]:
+async def search(session: aiohttp.ClientSession, base_query: str, page_limit: Optional[int] = None) -> AsyncGenerator[str, None]:
     page = 0
 
     async def fetch() -> bytes:
@@ -69,19 +69,22 @@ async def search(session: aiohttp.ClientSession, base_query: str) -> AsyncGenera
         async with session.get(url) as response:
             return await response.read()
 
-    # Special case for first page since we may not continue
-    data = await fetch()
-    last_page = parse_last_search_page(data)
-    asset_ids = parse_search_results(data)
-    for asset_id in asset_ids:
-        yield asset_id
-
-    while page < last_page:
-        page += 1
+    if page_limit is None or page_limit > 0:
+        # Special case for first page since we may not continue
         data = await fetch()
+        last_page = parse_last_search_page(data)
+        if page_limit is not None and last_page > page_limit:
+            last_page = page_limit - 1
         asset_ids = parse_search_results(data)
         for asset_id in asset_ids:
             yield asset_id
+
+        while page < last_page:
+            page += 1
+            data = await fetch()
+            asset_ids = parse_search_results(data)
+            for asset_id in asset_ids:
+                yield asset_id
 
 
 class Session:
@@ -127,7 +130,8 @@ class Session:
             types: Optional[List[AssetType]] = None,
             licenses: Optional[List[LicenseType]] = None,
             tags: Optional[List[str]] = None,
-            tag_operation: Optional[str] = None) -> AsyncGenerator[str, None]:
+            tag_operation: Optional[str] = None,
+            page_limit: Optional[int] = None) -> AsyncGenerator[str, None]:
         """
         :param keys: appears to search the entire page (including comments, tags...)
         :param title: appears in the asset title
@@ -138,6 +142,7 @@ class Session:
         :param licenses: allowed licenses.  Leave blank to allow all.
         :param tags: List of tags to match or avoid, depending on ``tag_operation``
         :param tag_operation: "or", "and", "not", "empty", "not empty"
+        :param page_limit: The maximum number of pages to be fetched. If None all items are fetched.
         """
         # 0) Apply defaults
         keys = keys or ""
@@ -194,7 +199,7 @@ class Session:
                 for license in licenses
             ])
             base_query += "&" + license_query
-        return search(self._session, base_query)
+        return search(self._session, base_query, page_limit=page_limit)
 
     async def describe_asset(self, asset_id: str) -> Asset:
         url = f"{self.config.url}/content/{asset_id}"
