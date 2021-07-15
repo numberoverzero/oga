@@ -113,11 +113,12 @@ def download_asset(session: Session, asset: str):
 @click.option("--license", type=click.Choice(list(license_type_map.keys())), multiple=True)
 @click.option("--tag", help="freeform tag", multiple=True, type=str)
 @click.option("--tag-op", type=click.Choice(["or", "and", "not", "empty", "not-empty"]), default="or")
+@click.option("--page-limit", help="Maximum number of pages to be fetched", type=int, default=None)
 @click.pass_obj
 def search_assets(
         session: Session, verbose: bool,
         keys: Optional[str], title: Optional[str], submitter: Optional[str],
-        sort_by: str, descending: bool, type: List[str], license: List[str], tag: List[str], tag_op: str):
+        sort_by: str, descending: bool, type: List[str], license: List[str], tag: List[str], tag_op: str, page_limit: Optional[int]):
     """Search for an asset."""
     types = [cli_type_map[x] for x in type]
     licenses = [license_type_map[x] for x in license]
@@ -130,7 +131,8 @@ def search_assets(
         types=types,
         licenses=licenses,
         tags=tag,
-        tag_operation=tag_op
+        tag_operation=tag_op,
+        page_limit=page_limit
     )
 
     async def process():
