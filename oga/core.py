@@ -69,12 +69,13 @@ async def search(session: aiohttp.ClientSession, base_query: str, page_limit: Op
         async with session.get(url) as response:
             return await response.read()
 
-    if page_limit is None or page_limit > 0:
+    assert page_limit is None or page_limit >= 0
+    if page_limit > 0:
         # Special case for first page since we may not continue
         data = await fetch()
         last_page = parse_last_search_page(data)
-        if page_limit is not None and last_page > page_limit:
-            last_page = page_limit - 1
+        if page_limit is not None:
+            last_page = min(last_page, page_limit - 1)
         asset_ids = parse_search_results(data)
         for asset_id in asset_ids:
             yield asset_id
