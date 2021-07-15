@@ -69,8 +69,8 @@ async def search(session: aiohttp.ClientSession, base_query: str, page_limit: Op
         async with session.get(url) as response:
             return await response.read()
 
-    assert page_limit is None or page_limit >= 0
-    if page_limit > 0:
+    assert page_limit is None or page_limit >= 0, "page_limit must be None or non-negative"
+    if page_limit is not None and page_limit > 0:
         # Special case for first page since we may not continue
         data = await fetch()
         last_page = parse_last_search_page(data)
