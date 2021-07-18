@@ -43,33 +43,43 @@ def parse_asset(asset_id: str, data: bytes) -> dict:
     for maybe_author in authors:
         if maybe_author["href"].startswith("/users/"):
             author = maybe_author["href"][7:]
+            authorName = maybe_author.text
             break
     else:
         author = None
+        authorName = None
 
-    # 1) type
+    # 1) name and explanation
+    name = soup.select("div[property=\"dc:title\"] h2")
+    assert len(name) == 1
+    name = name[0].text
+    explanation = soup.select(".right-column div[\property=\"content:encoded\"]")
+    assert len(explanation) == 1
+    explanation = explanation[0].text
+
+    # 2) type
     types = soup.find_all(class_="field-name-field-art-type")
     assert len(types) == 1
     type = AssetType(types[0].a.text)
 
-    # 2) licenses
+    # 3) licenses
     license_section = soup.find_all(class_="field-name-field-art-licenses")
     assert len(license_section) == 1
     licenses = [
         LicenseType(license.text)
         for license in license_section[0].find_all(class_="license-name")]
 
-    # 3) tags
+    # 4) tags
     tags_section = soup.find_all(class_="field-name-field-art-tags")
     assert len(tags_section) == 1
     tags = [tag.text for tag in tags_section[0].find_all("a")]
 
-    # 4) favorites
+    # 5) favorites
     favorites_section = soup.find_all(class_="field-name-favorites")
     assert len(favorites_section) == 1
     favorites = int(favorites_section[0].find(class_="field-item").text)
 
-    # 5) files
+    # 6) files
     files_section = soup.find_all(class_="field-name-field-art-files")
     assert len(files_section) == 1
     files = []
@@ -78,21 +88,29 @@ def parse_asset(asset_id: str, data: bytes) -> dict:
         file_id = urllib.parse.unquote(url).split("/sites/default/files/")[-1]
         files.append(file_id)
 
-    # 6) attribution
+    # 7) attribution
     attribution_section = soup.select('.field-name-field-art-attribution .field-items')
     attribution = None
     if len(attribution_section) == 1:
         attribution = attribution_section[0].text.strip()
-    
+
+    # 8) collections
+    collections_links = soup.select('.collect-container a')
+    collections = [ collection_link["href"].split("/content/")[-1] for collection_link in collections_links ]
+
     return {
         "id": asset_id,
+        "name": name,
+        "explanation": explanation,
         "author": author,
+        "authorName": authorName,
         "type": type,
         "licenses": licenses,
         "tags": tags,
         "favorites": favorites,
         "files": files,
-        "attribution": attribution
+        "attribution": attribution,
+        "collections": collections
     }
 
 
