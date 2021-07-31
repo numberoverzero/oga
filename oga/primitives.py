@@ -43,34 +43,46 @@ class AssetFile(NamedTuple):
 
 class Asset:
     id: str
+    name: str
+    explanation: str
     author: str
+    authorName: str
     type: AssetType
     licenses: List[LicenseType]
     tags: List[str]
     favorites: int
     files: List[AssetFile]
     attribution: str
+    collections: List[str]
 
-    def __init__(self, id, author, type, licenses, tags, favorites, files, attribution=None) -> None:
+    def __init__(self, id, name, explanation, author, authorName, type, licenses, tags, favorites, files, attribution=None, collections=[]) -> None:
         self.id = id
+        self.name = name
+        self.explanation = explanation
         self.author = author
+        self.authorName = authorName
         self.type = type
         self.licenses = licenses
         self.tags = tags
         self.favorites = favorites
         self.files = files
         self.attribution = attribution
+        self.collections = collections
 
     def to_json(self) -> dict:
         return {
             "id": self.id,
+            "name": self.name,
+            "explanation": self.explanation,
             "author": self.author,
+            "authorName": self.authorName,
             "type": self.type.value,
             "licenses": [license.value for license in self.licenses],
             "tags": self.tags,
             "favorites": self.favorites,
             "files": [file.to_json() for file in self.files],
-            "attribution": self.attribution
+            "attribution": self.attribution,
+            "collections": self.collections
         }
 
     def __repr__(self) -> str:
