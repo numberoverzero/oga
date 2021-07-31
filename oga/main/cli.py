@@ -89,8 +89,8 @@ def cli(ctx, config_path: Optional[str], root_dir: Optional[str], url: Optional[
 @click.pass_obj
 def describe_asset(session: Session, asset: str, verbose: bool):
     """Look up a single ASSET."""
-    description = session.loop.run_until_complete(cli_describe(session, asset, verbose))
-    print(description, flush=True)
+    summary = session.loop.run_until_complete(cli_describe(session, asset, verbose))
+    print(summary, flush=True)
 
 
 @cli.command("download")
@@ -137,7 +137,7 @@ def search_assets(
 
     async def process():
         async for asset_id in search:
-            description = await cli_describe(session, asset_id, verbose)
-            print(description, flush=True)
+            summary = await cli_describe(session, asset_id, verbose)
+            print(summary, flush=True)
 
     session.loop.run_until_complete(process())

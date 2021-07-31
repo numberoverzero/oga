@@ -43,19 +43,19 @@ def parse_asset(asset_id: str, data: bytes) -> dict:
     for maybe_author in authors:
         if maybe_author["href"].startswith("/users/"):
             author = maybe_author["href"][7:]
-            authorName = maybe_author.text
+            author_name = maybe_author.text
             break
     else:
         author = None
-        authorName = None
+        author_name = None
 
     # 1) name and explanation
     name = soup.select("div[property=\"dc:title\"] h2")
     assert len(name) == 1
     name = name[0].text
-    explanation = soup.select(".right-column div[\property=\"content:encoded\"]")
-    assert len(explanation) == 1
-    explanation = explanation[0].text
+    description = soup.select(".right-column div[\property=\"content:encoded\"]")
+    assert len(description) == 1
+    description = description[0].text
 
     # 2) type
     types = soup.find_all(class_="field-name-field-art-type")
@@ -96,14 +96,14 @@ def parse_asset(asset_id: str, data: bytes) -> dict:
 
     # 8) collections
     collections_links = soup.select('.collect-container a')
-    collections = [ collection_link["href"].split("/content/")[-1] for collection_link in collections_links ]
+    collections = [collection_link["href"].split("/content/")[-1] for collection_link in collections_links]
 
     return {
         "id": asset_id,
         "name": name,
-        "explanation": explanation,
+        "description": description,
         "author": author,
-        "authorName": authorName,
+        "author_name": author_name,
         "type": type,
         "licenses": licenses,
         "tags": tags,

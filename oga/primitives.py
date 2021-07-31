@@ -44,9 +44,9 @@ class AssetFile(NamedTuple):
 class Asset:
     id: str
     name: str
-    explanation: str
+    description: str
     author: str
-    authorName: str
+    author_name: str
     type: AssetType
     licenses: List[LicenseType]
     tags: List[str]
@@ -55,12 +55,12 @@ class Asset:
     attribution: str
     collections: List[str]
 
-    def __init__(self, id, name, explanation, author, authorName, type, licenses, tags, favorites, files, attribution=None, collections=[]) -> None:
+    def __init__(self, id, name, description, author, author_name, type, licenses, tags, favorites, files, attribution=None, collections=[]) -> None:
         self.id = id
         self.name = name
-        self.explanation = explanation
+        self.description = description
         self.author = author
-        self.authorName = authorName
+        self.author_name = author_name
         self.type = type
         self.licenses = licenses
         self.tags = tags
@@ -73,9 +73,9 @@ class Asset:
         return {
             "id": self.id,
             "name": self.name,
-            "explanation": self.explanation,
+            "description": self.description,
             "author": self.author,
-            "authorName": self.authorName,
+            "author_name": self.author_name,
             "type": self.type.value,
             "licenses": [license.value for license in self.licenses],
             "tags": self.tags,
